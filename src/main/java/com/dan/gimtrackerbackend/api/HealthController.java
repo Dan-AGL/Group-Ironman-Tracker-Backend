@@ -20,4 +20,13 @@ public class HealthController
     {
         return Map.of("status", "ok");
     }
+
+    /**
+     * Compatibility health endpoint used by the original plugin README and mock backend.
+     */
+    @GetMapping("/health")
+    public Map<String, String> legacyHealth()
+    {
+        return health();
+    }
 }
