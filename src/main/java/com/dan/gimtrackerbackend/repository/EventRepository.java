@@ -12,6 +12,8 @@ import java.util.List;
  */
 public interface EventRepository extends JpaRepository<EventEntity, Long>
 {
+    List<EventEntity> findByGroupInviteCodeOrderByEventTimeAsc(String inviteCode);
+
     /**
      * Returns all events for one group, oldest event-time first.
      * Spring generates the SQL from the method name.

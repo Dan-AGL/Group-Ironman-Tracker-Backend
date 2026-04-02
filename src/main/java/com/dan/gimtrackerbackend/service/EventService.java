@@ -4,10 +4,14 @@ import com.dan.gimtrackerbackend.dto.CreateEventRequest;
 import com.dan.gimtrackerbackend.dto.ProgressEventRequest;
 import com.dan.gimtrackerbackend.dto.ProgressUploadRequest;
 import com.dan.gimtrackerbackend.model.EventEntity;
+import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.repository.EventRepository;
+import com.dan.gimtrackerbackend.repository.GroupMemberRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -24,11 +28,15 @@ import java.util.Map;
 public class EventService
 {
     private final EventRepository eventRepository;
+    private final GroupService groupService;
+    private final GroupMemberRepository groupMemberRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public EventService(EventRepository eventRepository)
+    public EventService(EventRepository eventRepository, GroupService groupService, GroupMemberRepository groupMemberRepository)
     {
         this.eventRepository = eventRepository;
+        this.groupService = groupService;
+        this.groupMemberRepository = groupMemberRepository;
     }
 
     /**
@@ -38,6 +46,12 @@ public class EventService
      */
     public List<EventEntity> getEventsByGroupCode(String groupCode)
     {
+        List<EventEntity> groupedEvents = eventRepository.findByGroupInviteCodeOrderByEventTimeAsc(groupCode);
+        if (!groupedEvents.isEmpty())
+        {
+            return groupedEvents;
+        }
+
         return eventRepository.findByGroupCodeOrderByEventTimeAsc(groupCode);
     }
 
@@ -47,8 +61,10 @@ public class EventService
      */
     public EventEntity createEvent(CreateEventRequest request)
     {
+        GroupEntity group = requireMemberGroup(request.getGroupCode(), request.getPlayerName());
         EventEntity entity = new EventEntity();
-        entity.setGroupCode(request.getGroupCode());
+        entity.setGroup(group);
+        entity.setGroupCode(group.getInviteCode());
         entity.setPlayerName(request.getPlayerName());
         entity.setEventType(request.getEventType());
         entity.setEventTime(request.getEventTime());
@@ -70,8 +86,10 @@ public class EventService
 
     private EventEntity buildProgressEventEntity(ProgressUploadRequest request, ProgressEventRequest event)
     {
+        GroupEntity group = requireMemberGroup(request.getGroupCode(), request.getPlayerName());
         EventEntity entity = new EventEntity();
-        entity.setGroupCode(request.getGroupCode());
+        entity.setGroup(group);
+        entity.setGroupCode(group.getInviteCode());
         entity.setPlayerName(request.getPlayerName());
         entity.setEventType(event.getType());
         entity.setEventTime(parseEventTime(event.getTimestamp(), request.getTimestamp()));
@@ -103,5 +121,17 @@ public class EventService
         {
             throw new IllegalArgumentException("Unable to serialize progress event payload", ex);
         }
+    }
+
+    private GroupEntity requireMemberGroup(String inviteCode, String playerName)
+    {
+        GroupEntity group = groupService.getGroupByInviteCode(inviteCode);
+        boolean isMember = groupMemberRepository.findByGroupAndPlayerNameIgnoreCase(group, playerName.trim()).isPresent();
+        if (!isMember)
+        {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Player is not a member of this group");
+        }
+
+        return group;
     }
 }

@@ -2,9 +2,12 @@ package com.dan.gimtrackerbackend.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -30,6 +33,13 @@ public class EventEntity
      */
     @Column(nullable = false)
     private String groupCode;
+
+    /**
+     * Canonical group relationship used for validated memberships.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private GroupEntity group;
 
     /**
      * Name of the player who triggered the event.
@@ -84,6 +94,16 @@ public class EventEntity
     public void setGroupCode(String groupCode)
     {
         this.groupCode = groupCode;
+    }
+
+    public GroupEntity getGroup()
+    {
+        return group;
+    }
+
+    public void setGroup(GroupEntity group)
+    {
+        this.group = group;
     }
 
     public String getPlayerName()
