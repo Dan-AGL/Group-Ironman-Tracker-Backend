@@ -16,5 +16,7 @@ public interface GroupMemberRepository extends JpaRepository<GroupMemberEntity, 
 
     Optional<GroupMemberEntity> findByGroupAndPlayerNameIgnoreCase(GroupEntity group, String playerName);
 
+    Optional<GroupMemberEntity> findFirstByGroupOrderByJoinedAtAsc(GroupEntity group);
+
     long countByGroup(GroupEntity group);
 }

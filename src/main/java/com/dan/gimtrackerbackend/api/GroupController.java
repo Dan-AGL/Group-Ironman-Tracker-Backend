@@ -4,6 +4,7 @@ import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
 import com.dan.gimtrackerbackend.dto.GroupMemberResponse;
 import com.dan.gimtrackerbackend.dto.GroupResponse;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
+import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.service.GroupService;
 import jakarta.validation.Valid;
@@ -51,6 +52,16 @@ public class GroupController
     {
         GroupEntity group = groupService.joinGroup(request);
         return GroupResponse.fromEntity(group);
+    }
+
+    /**
+     * Removes one player from the group they previously joined.
+     */
+    @PostMapping("/leave")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void leaveGroup(@Valid @RequestBody LeaveGroupRequest request)
+    {
+        groupService.leaveGroup(request);
     }
 
     /**

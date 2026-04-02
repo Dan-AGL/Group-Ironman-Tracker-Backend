@@ -2,6 +2,7 @@ package com.dan.gimtrackerbackend.service;
 
 import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
+import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.model.GroupMemberEntity;
 import com.dan.gimtrackerbackend.repository.GroupMemberRepository;
@@ -97,6 +98,39 @@ public class GroupService
     {
         GroupEntity group = getGroupByInviteCode(inviteCode);
         return groupMemberRepository.findByGroupOrderByJoinedAtAsc(group);
+    }
+
+    /**
+     * Removes one player from a group and deletes the group if it becomes empty.
+     */
+    public void leaveGroup(LeaveGroupRequest request)
+    {
+        GroupEntity group = getGroupByInviteCode(request.getInviteCode());
+        GroupMemberEntity membership = groupMemberRepository.findByGroupAndPlayerNameIgnoreCase(
+                group,
+                normalizePlayerName(request.getPlayerName())
+            )
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group member not found"));
+
+        boolean ownerLeaving = "OWNER".equals(membership.getRole());
+        groupMemberRepository.delete(membership);
+
+        long remainingMembers = groupMemberRepository.countByGroup(group);
+        if (remainingMembers == 0)
+        {
+            groupRepository.delete(group);
+            return;
+        }
+
+        if (ownerLeaving)
+        {
+            groupMemberRepository.findFirstByGroupOrderByJoinedAtAsc(group)
+                .ifPresent(nextOwner ->
+                {
+                    nextOwner.setRole("OWNER");
+                    groupMemberRepository.save(nextOwner);
+                });
+        }
     }
 
     private String generateUniqueInviteCode()
