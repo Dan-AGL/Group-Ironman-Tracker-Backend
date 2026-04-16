@@ -5,6 +5,7 @@ import com.dan.gimtrackerbackend.dto.GroupMemberResponse;
 import com.dan.gimtrackerbackend.dto.GroupResponse;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
 import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
+import com.dan.gimtrackerbackend.dto.RemoveGroupMemberRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.service.GroupService;
 import jakarta.validation.Valid;
@@ -62,6 +63,16 @@ public class GroupController
     public void leaveGroup(@Valid @RequestBody LeaveGroupRequest request)
     {
         groupService.leaveGroup(request);
+    }
+
+    /**
+     * Removes one non-owner member from the group on behalf of the current owner.
+     */
+    @PostMapping("/remove-member")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeMember(@Valid @RequestBody RemoveGroupMemberRequest request)
+    {
+        groupService.removeMember(request);
     }
 
     /**

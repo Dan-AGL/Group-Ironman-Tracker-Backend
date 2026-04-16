@@ -3,17 +3,18 @@ package com.dan.gimtrackerbackend.service;
 import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
 import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
+import com.dan.gimtrackerbackend.dto.RemoveGroupMemberRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.model.GroupMemberEntity;
 import com.dan.gimtrackerbackend.repository.GroupMemberRepository;
 import com.dan.gimtrackerbackend.repository.GroupRepository;
+import java.security.SecureRandom;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 
 /**
  * Handles creation and membership rules for shared groups.
@@ -27,7 +28,7 @@ public class GroupService
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
 
     public GroupService(GroupRepository groupRepository, GroupMemberRepository groupMemberRepository)
     {
@@ -131,6 +132,37 @@ public class GroupService
                     groupMemberRepository.save(nextOwner);
                 });
         }
+    }
+
+    /**
+     * Removes a non-owner member after verifying the caller is the current owner.
+     */
+    public void removeMember(RemoveGroupMemberRequest request)
+    {
+        GroupEntity group = getGroupByInviteCode(request.getInviteCode());
+        GroupMemberEntity ownerMembership = groupMemberRepository.findByGroupAndPlayerNameIgnoreCase(
+                group,
+                normalizePlayerName(request.getOwnerPlayerName())
+            )
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the group owner can remove members"));
+
+        if (!"OWNER".equals(ownerMembership.getRole()))
+        {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the group owner can remove members");
+        }
+
+        GroupMemberEntity targetMembership = groupMemberRepository.findByGroupAndPlayerNameIgnoreCase(
+                group,
+                normalizePlayerName(request.getTargetPlayerName())
+            )
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group member not found"));
+
+        if ("OWNER".equals(targetMembership.getRole()))
+        {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The group owner cannot be removed");
+        }
+
+        groupMemberRepository.delete(targetMembership);
     }
 
     private String generateUniqueInviteCode()
