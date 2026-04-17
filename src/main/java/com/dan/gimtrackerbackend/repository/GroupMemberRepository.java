@@ -19,4 +19,10 @@ public interface GroupMemberRepository extends JpaRepository<GroupMemberEntity, 
     Optional<GroupMemberEntity> findFirstByGroupOrderByJoinedAtAsc(GroupEntity group);
 
     long countByGroup(GroupEntity group);
+
+    boolean existsByAuthCode(String authCode);
+
+    boolean existsBySessionToken(String sessionToken);
+
+    Optional<GroupMemberEntity> findBySessionToken(String sessionToken);
 }

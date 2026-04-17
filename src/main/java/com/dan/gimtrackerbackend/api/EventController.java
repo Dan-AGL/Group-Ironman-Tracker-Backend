@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,9 +39,12 @@ public class EventController
      * service, and converts each entity into a response DTO for the API caller.
      */
     @GetMapping("/group/{groupCode}")
-    public List<EventResponse> getEventsByGroupCode(@PathVariable String groupCode)
+    public List<EventResponse> getEventsByGroupCode(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @PathVariable String groupCode
+    )
     {
-        return eventService.getEventsByGroupCode(groupCode)
+        return eventService.getEventsByGroupCode(sessionToken, groupCode)
             .stream()
             .map(EventResponse::fromEntity)
             .toList();
@@ -52,9 +56,12 @@ public class EventController
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public EventResponse createEvent(@Valid @RequestBody CreateEventRequest request)
+    public EventResponse createEvent(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody CreateEventRequest request
+    )
     {
-        EventEntity savedEvent = eventService.createEvent(request);
+        EventEntity savedEvent = eventService.createEvent(sessionToken, request);
         return EventResponse.fromEntity(savedEvent);
     }
 }

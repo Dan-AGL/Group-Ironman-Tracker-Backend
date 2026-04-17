@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -26,9 +27,12 @@ public class ProgressController
     }
 
     @PostMapping("/api/progress")
-    public ResponseEntity<Map<String, Object>> createProgressEvents(@Valid @RequestBody ProgressUploadRequest request)
+    public ResponseEntity<Map<String, Object>> createProgressEvents(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody ProgressUploadRequest request
+    )
     {
-        List<EventEntity> savedEvents = eventService.createEventsFromProgressUpload(request);
+        List<EventEntity> savedEvents = eventService.createEventsFromProgressUpload(sessionToken, request);
         return ResponseEntity.ok(Map.of("ok", true, "storedCount", savedEvents.size()));
     }
 }

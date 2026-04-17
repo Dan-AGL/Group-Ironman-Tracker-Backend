@@ -40,6 +40,12 @@ public class GroupMemberEntity
     @Column(nullable = false)
     private String role;
 
+    @Column(name = "auth_code", nullable = false, unique = true)
+    private String authCode;
+
+    @Column(name = "session_token", unique = true)
+    private String sessionToken;
+
     @Column(nullable = false, updatable = false)
     private Instant joinedAt;
 
@@ -82,6 +88,26 @@ public class GroupMemberEntity
     public void setRole(String role)
     {
         this.role = role;
+    }
+
+    public String getAuthCode()
+    {
+        return authCode;
+    }
+
+    public void setAuthCode(String authCode)
+    {
+        this.authCode = authCode;
+    }
+
+    public String getSessionToken()
+    {
+        return sessionToken;
+    }
+
+    public void setSessionToken(String sessionToken)
+    {
+        this.sessionToken = sessionToken;
     }
 
     public Instant getJoinedAt()

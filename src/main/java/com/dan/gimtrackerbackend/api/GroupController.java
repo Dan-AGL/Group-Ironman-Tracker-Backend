@@ -1,11 +1,17 @@
 package com.dan.gimtrackerbackend.api;
 
+import com.dan.gimtrackerbackend.dto.BootstrapSessionRequest;
+import com.dan.gimtrackerbackend.dto.AuthenticateMemberRequest;
+import com.dan.gimtrackerbackend.dto.AuthenticatedGroupResponse;
 import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
 import com.dan.gimtrackerbackend.dto.GroupMemberResponse;
 import com.dan.gimtrackerbackend.dto.GroupResponse;
+import com.dan.gimtrackerbackend.dto.GetMemberAuthCodeRequest;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
 import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
+import com.dan.gimtrackerbackend.dto.MemberAuthCodeResponse;
 import com.dan.gimtrackerbackend.dto.RemoveGroupMemberRequest;
+import com.dan.gimtrackerbackend.dto.ResetMemberAuthCodeRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.service.GroupService;
 import jakarta.validation.Valid;
@@ -15,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,20 +46,36 @@ public class GroupController
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public GroupResponse createGroup(@Valid @RequestBody CreateGroupRequest request)
+    public AuthenticatedGroupResponse createGroup(@Valid @RequestBody CreateGroupRequest request)
     {
-        GroupEntity group = groupService.createGroup(request);
-        return GroupResponse.fromEntity(group);
+        return groupService.createGroup(request);
     }
 
     /**
      * Joins an existing group with an invite code.
      */
     @PostMapping("/join")
-    public GroupResponse joinGroup(@Valid @RequestBody JoinGroupRequest request)
+    public AuthenticatedGroupResponse joinGroup(@Valid @RequestBody JoinGroupRequest request)
     {
-        GroupEntity group = groupService.joinGroup(request);
-        return GroupResponse.fromEntity(group);
+        return groupService.joinGroup(request);
+    }
+
+    /**
+     * Exchanges one member auth code for a new session token.
+     */
+    @PostMapping("/authenticate-member")
+    public AuthenticatedGroupResponse authenticateMember(@Valid @RequestBody AuthenticateMemberRequest request)
+    {
+        return groupService.authenticateMember(request);
+    }
+
+    /**
+     * Temporary migration endpoint that exchanges an existing member name for a session token.
+     */
+    @PostMapping("/bootstrap-session")
+    public AuthenticatedGroupResponse bootstrapSession(@Valid @RequestBody BootstrapSessionRequest request)
+    {
+        return groupService.bootstrapSession(request);
     }
 
     /**
@@ -60,9 +83,12 @@ public class GroupController
      */
     @PostMapping("/leave")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void leaveGroup(@Valid @RequestBody LeaveGroupRequest request)
+    public void leaveGroup(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody LeaveGroupRequest request
+    )
     {
-        groupService.leaveGroup(request);
+        groupService.leaveGroup(sessionToken, request);
     }
 
     /**
@@ -70,27 +96,60 @@ public class GroupController
      */
     @PostMapping("/remove-member")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void removeMember(@Valid @RequestBody RemoveGroupMemberRequest request)
+    public void removeMember(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody RemoveGroupMemberRequest request
+    )
     {
-        groupService.removeMember(request);
+        groupService.removeMember(sessionToken, request);
+    }
+
+    /**
+     * Returns the current auth code for one existing member.
+     */
+    @PostMapping("/member-auth-code")
+    public MemberAuthCodeResponse getMemberAuthCode(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody GetMemberAuthCodeRequest request
+    )
+    {
+        return groupService.getMemberAuthCode(sessionToken, request);
+    }
+
+    /**
+     * Resets one member auth code on behalf of the current owner.
+     */
+    @PostMapping("/reset-member-auth-code")
+    public MemberAuthCodeResponse resetMemberAuthCode(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @Valid @RequestBody ResetMemberAuthCodeRequest request
+    )
+    {
+        return groupService.resetMemberAuthCode(sessionToken, request);
     }
 
     /**
      * Returns one group by invite code so the plugin can hydrate saved membership.
      */
     @GetMapping("/{inviteCode}")
-    public GroupResponse getGroup(@PathVariable String inviteCode)
+    public GroupResponse getGroup(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @PathVariable String inviteCode
+    )
     {
-        return GroupResponse.fromEntity(groupService.getGroupByInviteCode(inviteCode));
+        return GroupResponse.fromEntity(groupService.getGroupByInviteCode(sessionToken, inviteCode));
     }
 
     /**
      * Returns the players currently in the group.
      */
     @GetMapping("/{inviteCode}/members")
-    public List<GroupMemberResponse> getMembers(@PathVariable String inviteCode)
+    public List<GroupMemberResponse> getMembers(
+        @RequestHeader("X-GIM-Session") String sessionToken,
+        @PathVariable String inviteCode
+    )
     {
-        return groupService.getMembers(inviteCode)
+        return groupService.getMembers(sessionToken, inviteCode)
             .stream()
             .map(GroupMemberResponse::fromEntity)
             .toList();
