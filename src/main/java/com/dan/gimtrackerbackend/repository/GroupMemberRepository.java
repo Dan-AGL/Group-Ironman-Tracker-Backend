@@ -20,8 +20,6 @@ public interface GroupMemberRepository extends JpaRepository<GroupMemberEntity, 
 
     long countByGroup(GroupEntity group);
 
-    boolean existsByAuthCode(String authCode);
-
     boolean existsBySessionToken(String sessionToken);
 
     Optional<GroupMemberEntity> findBySessionToken(String sessionToken);

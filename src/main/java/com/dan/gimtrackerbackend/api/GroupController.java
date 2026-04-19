@@ -1,18 +1,12 @@
 package com.dan.gimtrackerbackend.api;
 
-import com.dan.gimtrackerbackend.dto.BootstrapSessionRequest;
-import com.dan.gimtrackerbackend.dto.AuthenticateMemberRequest;
 import com.dan.gimtrackerbackend.dto.AuthenticatedGroupResponse;
 import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
 import com.dan.gimtrackerbackend.dto.GroupMemberResponse;
 import com.dan.gimtrackerbackend.dto.GroupResponse;
-import com.dan.gimtrackerbackend.dto.GetMemberAuthCodeRequest;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
 import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
-import com.dan.gimtrackerbackend.dto.MemberAuthCodeResponse;
 import com.dan.gimtrackerbackend.dto.RemoveGroupMemberRequest;
-import com.dan.gimtrackerbackend.dto.ResetMemberAuthCodeRequest;
-import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -61,24 +55,6 @@ public class GroupController
     }
 
     /**
-     * Exchanges one member auth code for a new session token.
-     */
-    @PostMapping("/authenticate-member")
-    public AuthenticatedGroupResponse authenticateMember(@Valid @RequestBody AuthenticateMemberRequest request)
-    {
-        return groupService.authenticateMember(request);
-    }
-
-    /**
-     * Temporary migration endpoint that exchanges an existing member name for a session token.
-     */
-    @PostMapping("/bootstrap-session")
-    public AuthenticatedGroupResponse bootstrapSession(@Valid @RequestBody BootstrapSessionRequest request)
-    {
-        return groupService.bootstrapSession(request);
-    }
-
-    /**
      * Removes one player from the group they previously joined.
      */
     @PostMapping("/leave")
@@ -102,30 +78,6 @@ public class GroupController
     )
     {
         groupService.removeMember(sessionToken, request);
-    }
-
-    /**
-     * Returns the current auth code for one existing member.
-     */
-    @PostMapping("/member-auth-code")
-    public MemberAuthCodeResponse getMemberAuthCode(
-        @RequestHeader("X-GIM-Session") String sessionToken,
-        @Valid @RequestBody GetMemberAuthCodeRequest request
-    )
-    {
-        return groupService.getMemberAuthCode(sessionToken, request);
-    }
-
-    /**
-     * Resets one member auth code on behalf of the current owner.
-     */
-    @PostMapping("/reset-member-auth-code")
-    public MemberAuthCodeResponse resetMemberAuthCode(
-        @RequestHeader("X-GIM-Session") String sessionToken,
-        @Valid @RequestBody ResetMemberAuthCodeRequest request
-    )
-    {
-        return groupService.resetMemberAuthCode(sessionToken, request);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.dan.gimtrackerbackend.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * Request body used when a player creates a new group.
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 public class CreateGroupRequest
 {
     @NotBlank
+    @Size(max = 25)
     private String groupName;
 
     @NotBlank

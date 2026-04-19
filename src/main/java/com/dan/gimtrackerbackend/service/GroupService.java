@@ -1,15 +1,10 @@
 package com.dan.gimtrackerbackend.service;
 
-import com.dan.gimtrackerbackend.dto.AuthenticateMemberRequest;
 import com.dan.gimtrackerbackend.dto.AuthenticatedGroupResponse;
-import com.dan.gimtrackerbackend.dto.BootstrapSessionRequest;
 import com.dan.gimtrackerbackend.dto.CreateGroupRequest;
-import com.dan.gimtrackerbackend.dto.GetMemberAuthCodeRequest;
 import com.dan.gimtrackerbackend.dto.JoinGroupRequest;
 import com.dan.gimtrackerbackend.dto.LeaveGroupRequest;
-import com.dan.gimtrackerbackend.dto.MemberAuthCodeResponse;
 import com.dan.gimtrackerbackend.dto.RemoveGroupMemberRequest;
-import com.dan.gimtrackerbackend.dto.ResetMemberAuthCodeRequest;
 import com.dan.gimtrackerbackend.model.GroupEntity;
 import com.dan.gimtrackerbackend.model.GroupMemberEntity;
 import com.dan.gimtrackerbackend.repository.GroupMemberRepository;
@@ -31,8 +26,6 @@ public class GroupService
     private static final int MAX_GROUP_MEMBERS = 5;
     private static final String INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int INVITE_LENGTH = 8;
-    private static final int AUTH_CODE_BLOCK_LENGTH = 4;
-    private static final int AUTH_CODE_BLOCKS = 5;
     private static final int SESSION_TOKEN_BYTES = 24;
 
     private final GroupRepository groupRepository;
@@ -60,7 +53,6 @@ public class GroupService
         creatorMembership.setGroup(savedGroup);
         creatorMembership.setPlayerName(normalizePlayerName(request.getCreatorPlayerName()));
         creatorMembership.setRole("OWNER");
-        creatorMembership.setAuthCode(generateUniqueMemberAuthCode());
         creatorMembership.setSessionToken(generateUniqueSessionToken());
         groupMemberRepository.save(creatorMembership);
 
@@ -74,11 +66,15 @@ public class GroupService
     {
         GroupEntity group = getGroupByInviteCode(request.getInviteCode());
         String playerName = normalizePlayerName(request.getPlayerName());
+        String role = resolveJoinRole(group, playerName);
 
         GroupMemberEntity existingMembership = groupMemberRepository.findByGroupAndPlayerNameIgnoreCase(group, playerName).orElse(null);
         if (existingMembership != null)
         {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Member already exists, authenticate with your auth code");
+            applyOwnerRole(group, existingMembership, role);
+            existingMembership.setSessionToken(generateUniqueSessionToken());
+            groupMemberRepository.save(existingMembership);
+            return AuthenticatedGroupResponse.from(group, existingMembership);
         }
 
         long currentMemberCount = groupMemberRepository.countByGroup(group);
@@ -90,37 +86,11 @@ public class GroupService
         GroupMemberEntity membership = new GroupMemberEntity();
         membership.setGroup(group);
         membership.setPlayerName(playerName);
-        membership.setRole("MEMBER");
-        membership.setAuthCode(generateUniqueMemberAuthCode());
-        membership.setSessionToken(generateUniqueSessionToken());
-        groupMemberRepository.save(membership);
-        return AuthenticatedGroupResponse.from(group, membership);
-    }
-
-    /**
-     * Exchanges one member auth code for a fresh session token.
-     */
-    public AuthenticatedGroupResponse authenticateMember(AuthenticateMemberRequest request)
-    {
-        GroupEntity group = getGroupByInviteCode(request.getInviteCode());
-        GroupMemberEntity membership = groupMemberRepository.findByGroupOrderByJoinedAtAsc(group)
-            .stream()
-            .filter(member -> request.getAuthCode().trim().equalsIgnoreCase(member.getAuthCode()))
-            .findFirst()
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid auth code"));
-
-        membership.setSessionToken(generateUniqueSessionToken());
-        groupMemberRepository.save(membership);
-        return AuthenticatedGroupResponse.from(group, membership);
-    }
-
-    /**
-     * Temporary migration path for existing members saved before session tokens were introduced.
-     */
-    public AuthenticatedGroupResponse bootstrapSession(BootstrapSessionRequest request)
-    {
-        GroupEntity group = getGroupByInviteCode(request.getInviteCode());
-        GroupMemberEntity membership = requireMembership(group, request.getPlayerName());
+        membership.setRole(role);
+        if ("OWNER".equals(role))
+        {
+            demoteOtherOwners(group, null);
+        }
         membership.setSessionToken(generateUniqueSessionToken());
         groupMemberRepository.save(membership);
         return AuthenticatedGroupResponse.from(group, membership);
@@ -163,7 +133,6 @@ public class GroupService
         long remainingMembers = groupMemberRepository.countByGroup(group);
         if (remainingMembers == 0)
         {
-            groupRepository.delete(group);
             return;
         }
 
@@ -205,33 +174,6 @@ public class GroupService
         groupMemberRepository.delete(targetMembership);
     }
 
-    /**
-     * Returns the current auth code for one existing member.
-     */
-    public MemberAuthCodeResponse getMemberAuthCode(String sessionToken, GetMemberAuthCodeRequest request)
-    {
-        GroupMemberEntity membership = requireSessionMembership(sessionToken, request.getInviteCode());
-        return new MemberAuthCodeResponse(membership.getPlayerName(), membership.getAuthCode());
-    }
-
-    /**
-     * Rotates one member auth code after verifying the caller is the current owner.
-     */
-    public MemberAuthCodeResponse resetMemberAuthCode(String sessionToken, ResetMemberAuthCodeRequest request)
-    {
-        GroupMemberEntity ownerMembership = requireSessionMembership(sessionToken, request.getInviteCode());
-        GroupEntity group = ownerMembership.getGroup();
-        if (!"OWNER".equals(ownerMembership.getRole()))
-        {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the group owner can reset auth codes");
-        }
-
-        GroupMemberEntity targetMembership = requireMembership(group, request.getTargetPlayerName());
-        targetMembership.setAuthCode(generateUniqueMemberAuthCode());
-        groupMemberRepository.save(targetMembership);
-        return new MemberAuthCodeResponse(targetMembership.getPlayerName(), targetMembership.getAuthCode());
-    }
-
     private String generateUniqueInviteCode()
     {
         for (int attempt = 0; attempt < 20; attempt++)
@@ -244,20 +186,6 @@ public class GroupService
         }
 
         throw new IllegalStateException("Unable to generate a unique invite code");
-    }
-
-    private String generateUniqueMemberAuthCode()
-    {
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            String code = randomMemberAuthCode();
-            if (!groupMemberRepository.existsByAuthCode(code))
-            {
-                return code;
-            }
-        }
-
-        throw new IllegalStateException("Unable to generate a unique member auth code");
     }
 
     private String generateUniqueSessionToken()
@@ -286,28 +214,30 @@ public class GroupService
         return builder.toString();
     }
 
-    private String randomMemberAuthCode()
+    private String resolveJoinRole(GroupEntity group, String playerName)
     {
-        StringBuilder builder = new StringBuilder((AUTH_CODE_BLOCK_LENGTH * AUTH_CODE_BLOCKS) + (AUTH_CODE_BLOCKS - 1));
-        for (int block = 0; block < AUTH_CODE_BLOCKS; block++)
-        {
-            if (block > 0)
-            {
-                builder.append('-');
-            }
-
-            for (int index = 0; index < AUTH_CODE_BLOCK_LENGTH; index++)
-            {
-                builder.append(INVITE_ALPHABET.charAt(random.nextInt(INVITE_ALPHABET.length())));
-            }
-        }
-        return builder.toString();
+        return group.getCreatedBy().equalsIgnoreCase(playerName) ? "OWNER" : "MEMBER";
     }
 
-    private GroupMemberEntity requireMembership(String inviteCode, String playerName)
+    private void applyOwnerRole(GroupEntity group, GroupMemberEntity membership, String role)
     {
-        GroupEntity group = getGroupByInviteCode(inviteCode);
-        return requireMembership(group, playerName);
+        if ("OWNER".equals(role))
+        {
+            demoteOtherOwners(group, membership);
+        }
+        membership.setRole(role);
+    }
+
+    private void demoteOtherOwners(GroupEntity group, GroupMemberEntity keepOwner)
+    {
+        groupMemberRepository.findByGroupOrderByJoinedAtAsc(group).stream()
+            .filter(member -> "OWNER".equals(member.getRole()))
+            .filter(member -> keepOwner == null || !member.getId().equals(keepOwner.getId()))
+            .forEach(member ->
+            {
+                member.setRole("MEMBER");
+                groupMemberRepository.save(member);
+            });
     }
 
     public GroupMemberEntity requireSessionMembership(String sessionToken, String inviteCode)
